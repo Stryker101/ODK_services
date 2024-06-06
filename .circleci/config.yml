@@ -5,11 +5,10 @@ orbs:
 
 jobs:
   test:
-    description: Runs unit tests and instrumented tests on the Android Common
-    executor:
-      name: android/android-machine
-      resource-class: xlarge
-      tag: 2024.01.1
+    docker:
+      - image: circleci/android:2024.01
+        environment:
+          ADB_INSTALL_TIMEOUT: 10
 
     steps:
       - checkout
@@ -18,40 +17,41 @@ jobs:
           name: Chmod Permissions
           command: sudo chmod +x gradlew
 
-      - android/create-avd:
-          avd-name: Pixel_7_Pro
-          system-image: system-images;android-30;google_apis_playstore;x86_64
-          install: true
+      - run:
+          name: Setup AVD
+          command: |
+            echo "y" | sdkmanager "system-images;android-30;google_apis_playstore;x86_64"
+            avdmanager create avd -n test -k "system-images;android-30;google_apis_playstore;x86_64" --device "pixel"
 
       - run:
-          name: Start ADB server
-          command: adb start-server
-
-      - android/start-emulator:
-          avd-name: Pixel_7_Pro
-          no-window: true
-          restore-gradle-cache-prefix: v1
-          memory: 4096
-          post-emulator-launch-assemble-command: ./gradlew installSnapshotDebug
-
-      - android/disable-animations
+          name: Start Emulator
+          command: |
+            emulator -avd test -no-audio -no-window &
+            circle-android wait-for-boot
 
       - run:
-          name: Wait for Emulator to be Ready
-          command: adb wait-for-device shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done; sleep 5'  # Ensures the emulator is fully booted
+          name: Ensure Emulator is Ready
+          command: adb wait-for-device && sleep 60
 
       - run:
-          name: Restart ADB server
-          command: adb kill-server && adb start-server  # Restart ADB server to avoid version mismatch issues
+          name: Disable Animations
+          command: adb shell settings put global window_animation_scale 0.0 && adb shell settings put global transition_animation_scale 0.0 && adb shell settings put global animator_duration_scale 0.0
 
-      - android/run-tests:
-          test-command: ./gradlew testSnapshotDebugUnitTest
+      - run:
+          name: Install Debug APK
+          command: ./gradlew installSnapshotDebug
 
-      - android/run-tests:
-          test-command: ./gradlew grantPermissionForODKXApp connectedSnapshotDebugAndroidTest --info
+      - run:
+          name: Grant Permissions
+          command: ./gradlew grantPermissionForODKXApp
 
-      - android/save-gradle-cache:
-          cache-prefix: v1
+      - run:
+          name: Run Unit Tests
+          command: ./gradlew testSnapshotDebugUnitTest
+
+      - run:
+          name: Run Instrumented Tests
+          command: ./gradlew connectedSnapshotDebugAndroidTest --info
 
       - store_artifacts:
           name: Store Test Results
@@ -63,7 +63,7 @@ jobs:
 
   build:
     docker:
-      - image: cimg/android:2024.01
+      - image: circleci/android:2024.01
 
     steps:
       - checkout
@@ -72,15 +72,9 @@ jobs:
           name: Chmod Permissions
           command: sudo chmod +x gradlew
 
-      - android/restore-gradle-cache:
-          cache-prefix: v1
-
       - run:
           name: Download Dependencies
           command: ./gradlew androidDependencies
-
-      - android/save-gradle-cache:
-          cache-prefix: v1
 
       - run:
           name: Build Services
