@@ -12,51 +12,49 @@ jobs:
 
     steps:
       - checkout
-
+      - run:
+          name: Set JAVA_HOME to JDK 17
+          command: export JAVA_HOME=/usr/lib/jvm/java-17-openjdk
+      - run:
+          name: Verify Java Version
+          command: java -version
       - run:
           name: Chmod Permissions
           command: sudo chmod +x gradlew
-
       - run:
           name: Setup AVD
           command: |
-            echo "y" | sdkmanager "system-images;android-30;google_apis_playstore;x86_64"
-            avdmanager create avd -n test -k "system-images;android-30;google_apis_playstore;x86_64" --device "pixel"
-
+            echo "y" | sdkmanager "system-images;android-30;google_apis_playstore;x86"
+            avdmanager create avd -n test -k "system-images;android-30;google_apis_playstore;x86" --device "pixel"
       - run:
           name: Start Emulator
           command: |
             emulator -avd test -no-audio -no-window &
             circle-android wait-for-boot
-
       - run:
           name: Ensure Emulator is Ready
           command: adb wait-for-device && sleep 60
-
       - run:
           name: Disable Animations
-          command: adb shell settings put global window_animation_scale 0.0 && adb shell settings put global transition_animation_scale 0.0 && adb shell settings put global animator_duration_scale 0.0
-
+          command: |
+            adb shell settings put global window_animation_scale 0.0
+            adb shell settings put global transition_animation_scale 0.0
+            adb shell settings put global animator_duration_scale 0.0
       - run:
           name: Install Debug APK
           command: ./gradlew installSnapshotDebug
-
       - run:
           name: Grant Permissions
           command: ./gradlew grantPermissionForODKXApp
-
       - run:
           name: Run Unit Tests
           command: ./gradlew testSnapshotDebugUnitTest
-
       - run:
           name: Run Instrumented Tests
           command: ./gradlew connectedSnapshotDebugAndroidTest --info
-
       - store_artifacts:
           name: Store Test Results
           path: services_app/build/outputs/androidTest-results
-
       - store_artifacts:
           name: Store Test Reports
           path: services_app/build/reports
@@ -67,23 +65,18 @@ jobs:
 
     steps:
       - checkout
-
       - run:
           name: Chmod Permissions
           command: sudo chmod +x gradlew
-
       - run:
           name: Download Dependencies
           command: ./gradlew androidDependencies
-
       - run:
           name: Build Services
           command: ./gradlew assembleSnapshotDebug
-
       - store_artifacts:
           name: Store Build Artifacts
           path: services_app/build/outputs/apk
-
       - persist_to_workspace:
           root: .
           paths:
