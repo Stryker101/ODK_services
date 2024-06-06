@@ -6,9 +6,9 @@ orbs:
 jobs:
   test:
     docker:
-      - image: circleci/android:2024.01
+      - image: circleci/android:api-30
         environment:
-          ADB_INSTALL_TIMEOUT: 10
+          ADB_INSTALL_TIMEOUT: 10  # Increase the timeout for ADB
 
     steps:
       - checkout
@@ -63,7 +63,7 @@ jobs:
 
   build:
     docker:
-      - image: circleci/android:2024.01
+      - image: circleci/android:api-30
 
     steps:
       - checkout
